@@ -1,5 +1,7 @@
 using SK = SteamKit2;
 
+System.Console.WriteLine("Hotair: Initializing...");
+
 var steamClient = new SK.SteamClient();
 var steamUser = steamClient.GetHandler<SK.SteamUser>();
 var manager = new SK.CallbackManager(steamClient);
@@ -9,22 +11,53 @@ var skCallbackDisconnected = SubscribeTo<SK.SteamClient.DisconnectedCallback>();
 var skCallbackLoggedOn = SubscribeTo<SK.SteamUser.LoggedOnCallback>();
 var skCallbackLoggedOff = SubscribeTo<SK.SteamUser.LoggedOffCallback>();
 
+System.Console.WriteLine("Hotair: Connecting to Steam...");
+
 steamClient.Connect();
 WaitCallback(skCallbackConnected);
 
-var sessionFile = "~/.cache/hotair/steam-session.json";
+System.Console.WriteLine("Hotair: Checking for session data on disk...");
+
+var sessionFile = System.IO.Path.Join(
+    System.Environment.GetEnvironmentVariable("HOME"),
+    ".cache/hotair/steam-session.json"
+);
 SteamSession session;
 try
 {
     session = ReadJson<SteamSession>(sessionFile);
+    System.Console.WriteLine("Hotair: Checking for session data on disk...found");
 }
 catch (System.Exception)
 {
     session = new SteamSession();
+    System.Console.WriteLine("Hotair: Checking for session data on disk...not found");
+}
+
+if (session.RefreshToken != null)
+{
+    System.Console.WriteLine("Hotair: Logging on to Steam using saved session data...");
+    steamUser.LogOn(
+        new SK.SteamUser.LogOnDetails
+        {
+            Username = session.Username,
+            AccessToken = session.RefreshToken,
+            ShouldRememberPassword = true,
+        }
+    );
+
+    var logonResult = WaitCallback(skCallbackLoggedOn);
+    if (logonResult.Result != SK.EResult.OK)
+    {
+        System.Console.WriteLine("Hotair: Logging on to Steam using saved session data...failed");
+        session.RefreshToken = null;
+        session.AccessToken = null;
+    }
 }
 
 if (session.RefreshToken == null)
 {
+    System.Console.WriteLine("Hotair: Performing authentication...");
     var username = ReadString("Username: ");
     var password = ReadPassword("Password: ");
     var authSession = await steamClient.Authentication.BeginAuthSessionViaCredentialsAsync(
@@ -46,34 +79,34 @@ if (session.RefreshToken == null)
     {
         session.GuardData = pollResponse.NewGuardData;
     }
+    System.Console.WriteLine("Hotair: Writing new session data to disk...");
     WriteJson<SteamSession>(sessionFile, session);
-}
 
-steamUser.LogOn(
-    new SK.SteamUser.LogOnDetails
-    {
-        Username = session.Username,
-        AccessToken = session.RefreshToken,
-        ShouldRememberPassword = true,
-    }
-);
-
-var logonResult = WaitCallback(skCallbackLoggedOn);
-if (logonResult.Result != SK.EResult.OK)
-{
-    throw new System.Exception(
-        System.String.Format(
-            "Unable to logon to Steam: {0} / {1}",
-            logonResult.Result,
-            logonResult.ExtendedResult
-        )
+    System.Console.WriteLine("Hotair: Logging on to Steam using new session data...");
+    steamUser.LogOn(
+        new SK.SteamUser.LogOnDetails
+        {
+            Username = session.Username,
+            AccessToken = session.RefreshToken,
+            ShouldRememberPassword = true,
+        }
     );
+
+    var logonResult = WaitCallback(skCallbackLoggedOn);
+    if (logonResult.Result != SK.EResult.OK)
+    {
+        throw new System.Exception(
+            System.String.Format(
+                "Unable to logon to Steam: {0} / {1}",
+                logonResult.Result,
+                logonResult.ExtendedResult
+            )
+        );
+    }
 }
 
+System.Console.WriteLine("Hotair: Logging off from Steam...");
 steamUser.LogOff();
-WaitCallback(skCallbackLoggedOff);
-
-steamClient.Disconnect();
 WaitCallback(skCallbackDisconnected);
 
 Box<T> SubscribeTo<T>()
@@ -158,7 +191,8 @@ void WriteJson<T>(string filePath, T obj)
         obj,
         new System.Text.Json.JsonSerializerOptions { WriteIndented = true }
     );
-    System.IO.File.Move(filePath + ".tmp", filePath);
+    stream.Close();
+    System.IO.File.Move(filePath + ".tmp", filePath, true);
 }
 
 class Box<T>
@@ -168,8 +202,8 @@ class Box<T>
 
 class SteamSession
 {
-    public string Username;
-    public string AccessToken;
-    public string RefreshToken;
-    public string GuardData;
+    public string Username { get; set; }
+    public string AccessToken { get; set; }
+    public string RefreshToken { get; set; }
+    public string GuardData { get; set; }
 }
