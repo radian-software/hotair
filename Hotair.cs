@@ -89,6 +89,7 @@ if (session.RefreshToken == null)
             Username = session.Username,
             AccessToken = session.RefreshToken,
             ShouldRememberPassword = true,
+            MachineName = "Hotair",
         }
     );
 
