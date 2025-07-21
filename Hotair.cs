@@ -105,6 +105,17 @@ if (session.RefreshToken == null)
     }
 }
 
+System.Console.WriteLine("Hotair: Initializing Steam web API...");
+using dynamic playerService = SK.WebAPI.GetInterface("IPlayerService");
+
+System.Console.WriteLine("Hotair: Retrieving list of owned games...");
+SK.KeyValue ownedGames = playerService.GetOwnedGames(
+    steamid: steamUser.SteamID,
+    include_appinfo: true
+);
+
+System.Console.WriteLine("Hotair: Found {0} games", ownedGames["game_count"]);
+
 System.Console.WriteLine("Hotair: Logging off from Steam...");
 steamUser.LogOff();
 WaitCallback(skCallbackDisconnected);
@@ -178,14 +189,14 @@ string ReadPassword(string prompt)
 
 T ReadJson<T>(string filePath)
 {
-    using System.IO.FileStream stream = System.IO.File.OpenRead(filePath);
+    using var stream = System.IO.File.OpenRead(filePath);
     return System.Text.Json.JsonSerializer.Deserialize<T>(stream);
 }
 
 void WriteJson<T>(string filePath, T obj)
 {
     System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(filePath));
-    using System.IO.FileStream stream = System.IO.File.OpenWrite(filePath + ".tmp");
+    using var stream = System.IO.File.OpenWrite(filePath + ".tmp");
     System.Text.Json.JsonSerializer.Serialize<T>(
         stream,
         obj,
