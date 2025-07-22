@@ -10,6 +10,7 @@ var skCallbackConnected = SubscribeTo<SK.SteamClient.ConnectedCallback>();
 var skCallbackDisconnected = SubscribeTo<SK.SteamClient.DisconnectedCallback>();
 var skCallbackLoggedOn = SubscribeTo<SK.SteamUser.LoggedOnCallback>();
 var skCallbackLoggedOff = SubscribeTo<SK.SteamUser.LoggedOffCallback>();
+var skCallbackLicenseList = SubscribeTo<SK.SteamApps.LicenseListCallback>();
 
 System.Console.WriteLine("Hotair: Connecting to Steam...");
 
@@ -110,12 +111,13 @@ System.Console.WriteLine("Hotair: Initializing Steam web API...");
 using dynamic playerService = SK.WebAPI.GetInterface("IPlayerService");
 
 System.Console.WriteLine("Hotair: Retrieving list of owned games...");
-SK.KeyValue ownedGames = playerService.GetOwnedGames(
-    steamid: steamUser.SteamID,
-    include_appinfo: true
-);
+var licenseList = WaitCallback(skCallbackLicenseList);
 
-System.Console.WriteLine("Hotair: Found {0} games", ownedGames["game_count"]);
+System.Console.WriteLine("Hotair: Found {0} games", licenseList.LicenseList.Count);
+foreach (var license in licenseList.LicenseList)
+{
+    System.Console.WriteLine("- {0}", license.PackageID);
+}
 
 System.Console.WriteLine("Hotair: Logging off from Steam...");
 steamUser.LogOff();
