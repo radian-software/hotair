@@ -1,5 +1,14 @@
 using SK = SteamKit2;
 
+{
+    var msg = System.Environment.GetEnvironmentVariable("HOTAIR_MSG");
+    if (msg != null)
+    {
+        DumpMsg(msg);
+        return;
+    }
+}
+
 System.Console.WriteLine("Hotair: Initializing...");
 
 var steamClient = new SK.SteamClient();
@@ -218,6 +227,46 @@ void WriteJson<T>(string filePath, T obj)
     );
     stream.Close();
     System.IO.File.Move(filePath + ".tmp", filePath, true);
+}
+
+void DumpMsg(string msgBase64)
+{
+    var msg = SK.Internal.CMClient.GetPacketMsg(System.Convert.FromBase64String(msgBase64), null);
+    System.Console.WriteLine($"Parsed message {msg.GetType()}");
+    switch (msg.MsgType)
+    {
+        case SK.EMsg.Multi:
+            var msgMulti = new SK.ClientMsgProtobuf<SK.Internal.CMsgMulti>(msg);
+
+            {
+                using var payloadStream = new System.IO.MemoryStream(msgMulti.Body.message_body);
+                System.IO.Stream stream = payloadStream;
+
+                if (msgMulti.Body.size_unzipped > 0)
+                {
+                    stream = new System.IO.Compression.GZipStream(
+                        payloadStream,
+                        System.IO.Compression.CompressionMode.Decompress
+                    );
+                }
+
+                using (stream)
+                {
+                    System.Span<byte> length = stackalloc byte[sizeof(int)];
+
+                    while (stream.ReadAtLeast(length, length.Length, false) > 0)
+                    {
+                        var subSize = System.BitConverter.ToInt32(length);
+                        var subData = new byte[subSize];
+
+                        stream.ReadAtLeast(subData, subData.Length, false);
+
+                        DumpMsg(System.Convert.ToBase64String(subData));
+                    }
+                }
+            }
+            return;
+    }
 }
 
 class Box<T>
