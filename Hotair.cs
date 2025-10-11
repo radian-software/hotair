@@ -232,7 +232,7 @@ void WriteJson<T>(string filePath, T obj)
 void DumpMsg(string msgBase64)
 {
     var msg = SK.Internal.CMClient.GetPacketMsg(System.Convert.FromBase64String(msgBase64), null);
-    System.Console.WriteLine($"Parsed message {msg.GetType()}");
+    System.Console.WriteLine($"Message {msg.GetType()} (type = {0 + msg.MsgType})");
     switch (msg.MsgType)
     {
         case SK.EMsg.Multi:
@@ -266,6 +266,14 @@ void DumpMsg(string msgBase64)
                 }
             }
             return;
+        case SK.EMsg.ServiceMethodCallFromClient:
+            var msgRaw = new SK.ClientMsgProtobuf(msg);
+            System.Console.WriteLine($"Method {msgRaw.Header.Proto.target_job_name}");
+            break;
+        case SK.EMsg.ServiceMethodResponse:
+            msgRaw = new SK.ClientMsgProtobuf(msg);
+            System.Console.WriteLine($"Method {msgRaw.Header.Proto.target_job_name}");
+            break;
     }
 }
 
