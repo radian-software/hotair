@@ -6,11 +6,20 @@ var steamClient = new SK.SteamClient();
 var steamUser = steamClient.GetHandler<SK.SteamUser>();
 var manager = new SK.CallbackManager(steamClient);
 
+manager.Subscribe<SK.CallbackMsg>(
+    (val) =>
+    {
+        System.Console.WriteLine($"Hotair(debug): Got callback {val}");
+    }
+);
+
 var skCallbackConnected = SubscribeTo<SK.SteamClient.ConnectedCallback>();
 var skCallbackDisconnected = SubscribeTo<SK.SteamClient.DisconnectedCallback>();
 var skCallbackLoggedOn = SubscribeTo<SK.SteamUser.LoggedOnCallback>();
 var skCallbackLoggedOff = SubscribeTo<SK.SteamUser.LoggedOffCallback>();
 var skCallbackLicenseList = SubscribeTo<SK.SteamApps.LicenseListCallback>();
+var skCallbackEmailAddrInfo = SubscribeTo<SK.SteamUser.EmailAddrInfoCallback>();
+var skCallbackAccountInfo = SubscribeTo<SK.SteamUser.AccountInfoCallback>();
 
 System.Console.WriteLine("Hotair: Connecting to Steam...");
 
@@ -107,17 +116,19 @@ if (session.RefreshToken == null)
     }
 }
 
+System.Console.WriteLine("Hotair: Waiting for account information...");
+
+var accountInfo = WaitCallback(skCallbackAccountInfo);
+System.Console.WriteLine($"Hotair: Account name: {accountInfo.PersonaName}");
+
+var emailInfo = WaitCallback(skCallbackEmailAddrInfo);
+System.Console.WriteLine($"Hotair: Account email: {emailInfo.EmailAddress}");
+
+var licenseList = WaitCallback(skCallbackLicenseList);
+System.Console.WriteLine($"Hotair: Found {licenseList.LicenseList.Count} licenses");
+
 System.Console.WriteLine("Hotair: Initializing Steam web API...");
 using dynamic playerService = SK.WebAPI.GetInterface("IPlayerService");
-
-System.Console.WriteLine("Hotair: Retrieving list of owned games...");
-var licenseList = WaitCallback(skCallbackLicenseList);
-
-System.Console.WriteLine("Hotair: Found {0} games", licenseList.LicenseList.Count);
-foreach (var license in licenseList.LicenseList)
-{
-    System.Console.WriteLine("- {0}", license.PackageID);
-}
 
 System.Console.WriteLine("Hotair: Logging off from Steam...");
 steamUser.LogOff();
