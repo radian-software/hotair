@@ -231,6 +231,7 @@ void WriteJson<T>(string filePath, T obj)
 
 void DumpMsg(string msgBase64)
 {
+    System.Console.WriteLine($"Dumping {msgBase64}");
     var packet = SK.Internal.CMClient.GetPacketMsg(
         System.Convert.FromBase64String(msgBase64),
         null
