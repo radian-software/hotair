@@ -231,12 +231,16 @@ void WriteJson<T>(string filePath, T obj)
 
 void DumpMsg(string msgBase64)
 {
-    var msg = SK.Internal.CMClient.GetPacketMsg(System.Convert.FromBase64String(msgBase64), null);
-    System.Console.WriteLine($"Message {msg.GetType()} (type = {0 + msg.MsgType})");
-    switch (msg.MsgType)
+    var packet = SK.Internal.CMClient.GetPacketMsg(
+        System.Convert.FromBase64String(msgBase64),
+        null
+    );
+    System.Console.WriteLine($"Message {packet.GetType()} (type = {0 + packet.MsgType})");
+    SK.ClientMsgProtobuf msg;
+    switch (packet.MsgType)
     {
         case SK.EMsg.Multi:
-            var msgMulti = new SK.ClientMsgProtobuf<SK.Internal.CMsgMulti>(msg);
+            var msgMulti = new SK.ClientMsgProtobuf<SK.Internal.CMsgMulti>(packet);
 
             {
                 using var payloadStream = new System.IO.MemoryStream(msgMulti.Body.message_body);
@@ -267,12 +271,16 @@ void DumpMsg(string msgBase64)
             }
             return;
         case SK.EMsg.ServiceMethodCallFromClient:
-            var msgRaw = new SK.ClientMsgProtobuf(msg);
-            System.Console.WriteLine($"Method {msgRaw.Header.Proto.target_job_name}");
+            msg = new SK.ClientMsgProtobuf(packet);
+            System.Console.WriteLine($":: Method {msg.Header.Proto.target_job_name}");
+            break;
+        case SK.EMsg.ServiceMethod:
+            msg = new SK.ClientMsgProtobuf(packet);
+            System.Console.WriteLine($":: Method {msg.Header.Proto.target_job_name}");
             break;
         case SK.EMsg.ServiceMethodResponse:
-            msgRaw = new SK.ClientMsgProtobuf(msg);
-            System.Console.WriteLine($"Method {msgRaw.Header.Proto.target_job_name}");
+            msg = new SK.ClientMsgProtobuf(packet);
+            System.Console.WriteLine($":: Method {msg.Header.Proto.target_job_name}");
             break;
     }
 }
