@@ -302,6 +302,9 @@ void DumpMsg(string msgBase64)
             var reqMsg = new SK.ClientMsgProtobuf<SK.Internal.CMsgClientPICSProductInfoRequest>(
                 packet
             );
+            System.Console.WriteLine(
+                $":: Metadata only? {(reqMsg.Body.meta_data_only ? "YES" : "NO")}"
+            );
             foreach (var pkg in reqMsg.Body.packages)
             {
                 System.Console.WriteLine($":: Package: {pkg.packageid}");
@@ -315,13 +318,24 @@ void DumpMsg(string msgBase64)
             var respMsg = new SK.ClientMsgProtobuf<SK.Internal.CMsgClientPICSProductInfoResponse>(
                 packet
             );
+            System.Console.WriteLine(
+                $":: Metadata only? {(respMsg.Body.meta_data_only ? "YES" : "NO")}"
+            );
             foreach (var pkg in respMsg.Body.packages)
             {
-                System.Console.WriteLine($":: Package: {pkg.packageid}");
+                System.Console.WriteLine($":: Package: {pkg.packageid} v{pkg.change_number}");
+            }
+            foreach (var pkgid in respMsg.Body.unknown_packageids)
+            {
+                System.Console.WriteLine($":: Unknown App ID: {pkgid}");
             }
             foreach (var app in respMsg.Body.apps)
             {
-                System.Console.WriteLine($":: App: {app.appid}");
+                System.Console.WriteLine($":: App: {app.appid} v{app.change_number}");
+            }
+            foreach (var appid in respMsg.Body.unknown_appids)
+            {
+                System.Console.WriteLine($":: Unknown App ID: {appid}");
             }
             break;
     }
