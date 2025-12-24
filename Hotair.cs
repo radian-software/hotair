@@ -7,6 +7,21 @@ using SK = SteamKit2;
         DumpMsg(msg);
         return;
     }
+
+    if (System.Environment.GetEnvironmentVariable("HOTAIR_DUMP_STDIN") == "1")
+    {
+        var idx = 0;
+        while ((msg = System.Console.ReadLine()) != null)
+        {
+            var len = System.Convert.FromBase64String(msg).Length;
+            System.Console.WriteLine();
+            System.Console.WriteLine($"[[ BEGIN MSG {idx} ({len} bytes) ]]");
+            System.Console.WriteLine();
+            DumpMsg(msg);
+            idx += 1;
+        }
+        return;
+    }
 }
 
 System.Console.WriteLine("Hotair: Initializing...");
