@@ -244,6 +244,14 @@ void WriteJson<T>(string filePath, T obj)
     System.IO.File.Move(filePath + ".tmp", filePath, true);
 }
 
+string SerializeJson<T>(T obj)
+{
+    return System.Text.Json.JsonSerializer.Serialize(
+        obj,
+        new System.Text.Json.JsonSerializerOptions { WriteIndented = true }
+    );
+}
+
 void DumpMsg(string msgBase64)
 {
     System.Console.WriteLine($"Dumping {msgBase64}");
@@ -289,6 +297,16 @@ void DumpMsg(string msgBase64)
         case SK.EMsg.ServiceMethodCallFromClient:
             msg = new SK.ClientMsgProtobuf(packet);
             System.Console.WriteLine($":: Method {msg.Header.Proto.target_job_name}");
+            switch (msg.Header.Proto.target_job_name)
+            {
+                case "ClientMetrics.ReportLinuxStats#1":
+                    var jobMsg =
+                        new SK.ClientMsgProtobuf<SK.Internal.CClientMetrics_ReportLinuxStats_Notification>(
+                            packet
+                        );
+                    System.Console.WriteLine(SerializeJson(jobMsg.Body));
+                    break;
+            }
             break;
         case SK.EMsg.ServiceMethod:
             msg = new SK.ClientMsgProtobuf(packet);
@@ -302,41 +320,13 @@ void DumpMsg(string msgBase64)
             var reqMsg = new SK.ClientMsgProtobuf<SK.Internal.CMsgClientPICSProductInfoRequest>(
                 packet
             );
-            System.Console.WriteLine(
-                $":: Metadata only? {(reqMsg.Body.meta_data_only ? "YES" : "NO")}"
-            );
-            foreach (var pkg in reqMsg.Body.packages)
-            {
-                System.Console.WriteLine($":: Package: {pkg.packageid}");
-            }
-            foreach (var app in reqMsg.Body.apps)
-            {
-                System.Console.WriteLine($":: App: {app.appid}");
-            }
+            System.Console.WriteLine(SerializeJson(reqMsg.Body));
             break;
         case SK.EMsg.ClientPICSProductInfoResponse:
             var respMsg = new SK.ClientMsgProtobuf<SK.Internal.CMsgClientPICSProductInfoResponse>(
                 packet
             );
-            System.Console.WriteLine(
-                $":: Metadata only? {(respMsg.Body.meta_data_only ? "YES" : "NO")}"
-            );
-            foreach (var pkg in respMsg.Body.packages)
-            {
-                System.Console.WriteLine($":: Package: {pkg.packageid} v{pkg.change_number}");
-            }
-            foreach (var pkgid in respMsg.Body.unknown_packageids)
-            {
-                System.Console.WriteLine($":: Unknown App ID: {pkgid}");
-            }
-            foreach (var app in respMsg.Body.apps)
-            {
-                System.Console.WriteLine($":: App: {app.appid} v{app.change_number}");
-            }
-            foreach (var appid in respMsg.Body.unknown_appids)
-            {
-                System.Console.WriteLine($":: Unknown App ID: {appid}");
-            }
+            System.Console.WriteLine(SerializeJson(respMsg.Body));
             break;
     }
 }
