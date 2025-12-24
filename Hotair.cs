@@ -283,6 +283,32 @@ void DumpMsg(string msgBase64)
             msg = new SK.ClientMsgProtobuf(packet);
             System.Console.WriteLine($":: Method {msg.Header.Proto.target_job_name}");
             break;
+        case SK.EMsg.ClientPICSProductInfoRequest:
+            var reqMsg = new SK.ClientMsgProtobuf<SK.Internal.CMsgClientPICSProductInfoRequest>(
+                packet
+            );
+            foreach (var pkg in reqMsg.Body.packages)
+            {
+                System.Console.WriteLine($":: Package: {pkg.packageid}");
+            }
+            foreach (var app in reqMsg.Body.apps)
+            {
+                System.Console.WriteLine($":: App: {app.appid}");
+            }
+            break;
+        case SK.EMsg.ClientPICSProductInfoResponse:
+            var respMsg = new SK.ClientMsgProtobuf<SK.Internal.CMsgClientPICSProductInfoResponse>(
+                packet
+            );
+            foreach (var pkg in respMsg.Body.packages)
+            {
+                System.Console.WriteLine($":: Package: {pkg.packageid}");
+            }
+            foreach (var app in respMsg.Body.apps)
+            {
+                System.Console.WriteLine($":: App: {app.appid}");
+            }
+            break;
     }
 }
 
