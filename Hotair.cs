@@ -28,6 +28,7 @@ System.Console.WriteLine("Hotair: Initializing...");
 
 var steamClient = new SK.SteamClient();
 var steamUser = steamClient.GetHandler<SK.SteamUser>();
+var steamApps = steamClient.GetHandler<SK.SteamApps>();
 var manager = new SK.CallbackManager(steamClient);
 
 manager.Subscribe<SK.CallbackMsg>(
@@ -151,8 +152,16 @@ System.Console.WriteLine($"Hotair: Account email: {emailInfo.EmailAddress}");
 var licenseList = WaitCallback(skCallbackLicenseList);
 System.Console.WriteLine($"Hotair: Found {licenseList.LicenseList.Count} licenses");
 
-System.Console.WriteLine("Hotair: Initializing Steam web API...");
-using dynamic playerService = SK.WebAPI.GetInterface("IPlayerService");
+System.Console.WriteLine($"Hotair: Getting list of apps in library...");
+var picsInfo = await steamApps.PICSGetProductInfo(null, new SK.SteamApps.PICSRequest(id: 0));
+if (picsInfo.Failed)
+{
+    throw new System.Exception("Failed PICS request");
+}
+var appIDs =
+    FormatKeyValue(picsInfo.Results[0].Packages[0].KeyValues)["appids"]
+    as System.Collections.Generic.Dictionary<string, object>;
+System.Console.WriteLine($"Hotair: Found {appIDs.Count} apps in library");
 
 System.Console.WriteLine("Hotair: Logging off from Steam...");
 steamUser.LogOff();
@@ -252,7 +261,7 @@ string SerializeJson<T>(T obj)
     );
 }
 
-object FormatKeyValue(SK.KeyValue kv)
+System.Collections.Generic.Dictionary<string, object> FormatKeyValue(SK.KeyValue kv)
 {
     var obj = new System.Collections.Generic.Dictionary<string, object>();
     foreach (var child in kv.Children)
