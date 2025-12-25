@@ -80,6 +80,8 @@ System.Console.WriteLine("Hotair: Initializing...");
 var steamClient = new SK.SteamClient();
 var steamUser = steamClient.GetHandler<SK.SteamUser>();
 var steamApps = steamClient.GetHandler<SK.SteamApps>();
+var steamContent = steamClient.GetHandler<SK.SteamContent>();
+var steamCDN = new SK.CDN.Client(steamClient);
 var manager = new SK.CallbackManager(steamClient);
 
 var skCallbackConnected = SubscribeTo<SK.SteamClient.ConnectedCallback>();
@@ -345,8 +347,10 @@ if (chosenGame == 0)
 }
 else
 {
+    System.Console.WriteLine($"Hotair: Checking information for game {chosenGame}...");
     var game = appsInfo[chosenGame];
-    var gid = "";
+    uint depotId = 0;
+    ulong manifestId = 0;
     foreach (var depot in LookPath(game, "depots") as C.Dictionary<string, object>)
     {
         string oslist = "";
@@ -360,14 +364,35 @@ else
         }
         if (oslist == "linux")
         {
-            gid = LookPath(depot.Value, "manifests", "public", "gid") as string;
+            depotId = System.UInt32.Parse(depot.Key);
+            manifestId = System.UInt64.Parse(
+                LookPath(depot.Value, "manifests", "public", "gid") as string
+            );
             break;
         }
     }
-    if (gid == "")
+    if (depotId == 0)
     {
         throw new System.Exception($"Failed to find Linux depot for app {chosenGame}");
     }
+    System.Console.WriteLine($"Hotair: Checking information for game {chosenGame}... done");
+    System.Console.WriteLine($"Hotair: Getting manifest request code...");
+    var manifestReqCode = await steamContent.GetManifestRequestCode(
+        depotId,
+        chosenGame,
+        manifestId
+    );
+    System.Console.WriteLine($"Hotair: Getting manifest request code... done");
+    System.Console.WriteLine($"Hotair: Downloading manifest...");
+    SK.CDN.Server cdnServer = new System.Net.DnsEndPoint("cache18-lax1.steamcontent.com", 443);
+    var manifest = await steamCDN.DownloadManifestAsync(
+        depotId,
+        manifestId,
+        manifestReqCode,
+        cdnServer
+    );
+    System.Console.WriteLine($"Hotair: Downloading manifest... done");
+    System.Console.WriteLine(SerializeJson(manifest));
 }
 
 System.Console.WriteLine("Hotair: Logging off from Steam...");
