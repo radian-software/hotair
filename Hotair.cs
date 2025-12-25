@@ -376,6 +376,9 @@ else
         throw new System.Exception($"Failed to find Linux depot for app {chosenGame}");
     }
     System.Console.WriteLine($"Hotair: Checking information for game {chosenGame}... done");
+    System.Console.WriteLine($"Hotair: Requesting depot decryption key...");
+    var depotKey = await steamApps.GetDepotDecryptionKey(depotId, chosenGame);
+    System.Console.WriteLine($"Hotair: Requesting depot decryption key... done");
     System.Console.WriteLine($"Hotair: Getting manifest request code...");
     var manifestReqCode = await steamContent.GetManifestRequestCode(
         depotId,
@@ -389,7 +392,8 @@ else
         depotId,
         manifestId,
         manifestReqCode,
-        cdnServer
+        cdnServer,
+        depotKey.DepotKey
     );
     System.Console.WriteLine($"Hotair: Downloading manifest... done");
     System.Console.WriteLine(SerializeJson(manifest));
