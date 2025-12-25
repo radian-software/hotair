@@ -31,13 +31,6 @@ var steamUser = steamClient.GetHandler<SK.SteamUser>();
 var steamApps = steamClient.GetHandler<SK.SteamApps>();
 var manager = new SK.CallbackManager(steamClient);
 
-manager.Subscribe<SK.CallbackMsg>(
-    (val) =>
-    {
-        System.Console.WriteLine($"Hotair(debug): Got callback {val}");
-    }
-);
-
 var skCallbackConnected = SubscribeTo<SK.SteamClient.ConnectedCallback>();
 var skCallbackDisconnected = SubscribeTo<SK.SteamClient.DisconnectedCallback>();
 var skCallbackLoggedOn = SubscribeTo<SK.SteamUser.LoggedOnCallback>();
@@ -162,18 +155,34 @@ if (libraryAccessToken == 0)
     throw new System.Exception("Failed to find access token in license for package 0");
 
 System.Console.WriteLine($"Hotair: Getting list of apps in library...");
-var picsInfo = await steamApps.PICSGetProductInfo(
+var pkgPicsInfo = await steamApps.PICSGetProductInfo(
     null,
     new SK.SteamApps.PICSRequest(id: 0, access_token: libraryAccessToken)
 );
-if (picsInfo.Failed)
+if (pkgPicsInfo.Failed)
 {
-    throw new System.Exception("Failed PICS request");
+    throw new System.Exception("Failed PICS request for packages");
 }
 var appIDs =
-    FormatKeyValue(picsInfo.Results[0].Packages[0].KeyValues)["appids"]
+    FormatKeyValue(pkgPicsInfo.Results[0].Packages[0].KeyValues)["appids"]
     as System.Collections.Generic.Dictionary<string, object>;
 System.Console.WriteLine($"Hotair: Found {appIDs.Count} apps in library");
+
+System.Console.WriteLine($"Hotair: Getting details for apps in library...");
+var picsApps = new System.Collections.Generic.List<SK.SteamApps.PICSRequest>();
+foreach (var appID in appIDs)
+{
+    picsApps.Add(new SK.SteamApps.PICSRequest(id: System.UInt32.Parse(appID.Value as string)));
+}
+var appPicsInfo = await steamApps.PICSGetProductInfo(
+    picsApps,
+    new System.Collections.Generic.List<SK.SteamApps.PICSRequest>(),
+    false
+);
+if (appPicsInfo.Failed)
+{
+    throw new System.Exception("Failed PICS request for apps");
+}
 
 System.Console.WriteLine("Hotair: Logging off from Steam...");
 steamUser.LogOff();
