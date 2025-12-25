@@ -152,8 +152,20 @@ System.Console.WriteLine($"Hotair: Account email: {emailInfo.EmailAddress}");
 var licenseList = WaitCallback(skCallbackLicenseList);
 System.Console.WriteLine($"Hotair: Found {licenseList.LicenseList.Count} licenses");
 
+ulong libraryAccessToken = 0;
+foreach (var license in licenseList.LicenseList)
+{
+    if (license.PackageID == 0)
+        libraryAccessToken = license.AccessToken;
+}
+if (libraryAccessToken == 0)
+    throw new System.Exception("Failed to find access token in license for package 0");
+
 System.Console.WriteLine($"Hotair: Getting list of apps in library...");
-var picsInfo = await steamApps.PICSGetProductInfo(null, new SK.SteamApps.PICSRequest(id: 0));
+var picsInfo = await steamApps.PICSGetProductInfo(
+    null,
+    new SK.SteamApps.PICSRequest(id: 0, access_token: libraryAccessToken)
+);
 if (picsInfo.Failed)
 {
     throw new System.Exception("Failed PICS request");
