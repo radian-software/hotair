@@ -252,6 +252,19 @@ string SerializeJson<T>(T obj)
     );
 }
 
+object FormatKeyValue(SK.KeyValue kv)
+{
+    var obj = new System.Collections.Generic.Dictionary<string, object>();
+    foreach (var child in kv.Children)
+    {
+        if (child.Children.Count > 0)
+            obj[child.Name] = FormatKeyValue(child);
+        else
+            obj[child.Name] = child.Value;
+    }
+    return obj;
+}
+
 void DumpMsg(string msgBase64)
 {
     System.Console.WriteLine($"Dumping {msgBase64}");
@@ -344,6 +357,22 @@ void DumpMsg(string msgBase64)
                 packet
             );
             System.Console.WriteLine(SerializeJson(respMsg.Body));
+            foreach (var pkg in respMsg.Body.packages)
+            {
+                if (pkg.buffer == null)
+                    continue;
+                using var ms = new System.IO.MemoryStream(pkg.buffer);
+                using var br = new System.IO.BinaryReader(ms);
+                br.ReadUInt32();
+                var kv = new SK.KeyValue();
+                System.Console.WriteLine($":: Buffer for package {pkg.packageid}");
+                if (!kv.TryReadAsBinary(ms))
+                {
+                    System.Console.WriteLine("   (failed to parse, skipping)");
+                    continue;
+                }
+                System.Console.WriteLine(SerializeJson(FormatKeyValue(kv)));
+            }
             break;
     }
 }
