@@ -475,6 +475,17 @@ void DumpMsg(string msgBase64)
                             }
                             System.Console.WriteLine(SerializeJson(FormatKeyValue(kv)));
                         }
+                        foreach (
+                            var app in (body as SK.Internal.CMsgClientPICSProductInfoResponse).apps
+                        )
+                        {
+                            if (app.buffer == null)
+                                continue;
+                            System.Console.WriteLine($":: Buffer for app {app.appid}");
+                            System.Console.WriteLine(
+                                System.Text.Encoding.UTF8.GetString(app.buffer)
+                            );
+                        }
                     }
                 }
             }
