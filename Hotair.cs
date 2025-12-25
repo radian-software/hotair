@@ -294,10 +294,12 @@ void DumpMsg(string msgBase64)
                 }
             }
             return;
+        case SK.EMsg.ServiceMethod:
         case SK.EMsg.ServiceMethodCallFromClient:
+        case SK.EMsg.ServiceMethodCallFromClientNonAuthed:
+        case SK.EMsg.ServiceMethodResponse:
             msg = new SK.ClientMsgProtobuf(packet);
             System.Console.WriteLine(SerializeJson(msg.Header));
-            System.Console.WriteLine($":: Method {msg.Header.Proto.target_job_name}");
             var match = System.Text.RegularExpressions.Regex.Match(
                 msg.Header.Proto.target_job_name,
                 "^([^.]+)\\.([^.#]+)#1$"
@@ -312,9 +314,17 @@ void DumpMsg(string msgBase64)
             }
             else
             {
-                var protoType = cls.GetMethod(match.Groups[2].Value)
-                    .GetParameters()[0]
-                    .ParameterType;
+                var method = cls.GetMethod(match.Groups[2].Value);
+                System.Type protoType;
+                if (packet.MsgType == SK.EMsg.ServiceMethodResponse)
+                {
+                    protoType = method.ReturnType.GetGenericArguments()[0].GetGenericArguments()[0];
+                }
+                else
+                {
+                    protoType = method.GetParameters()[0].ParameterType;
+                }
+                System.Console.WriteLine(protoType);
                 var protoWrapper = typeof(SK.ClientMsgProtobuf<>)
                     .MakeGenericType(protoType)
                     .GetConstructor(new System.Type[] { typeof(SK.IPacketMsg) })
@@ -322,14 +332,6 @@ void DumpMsg(string msgBase64)
                 var body = protoWrapper.GetType().GetProperty("Body").GetValue(protoWrapper);
                 System.Console.WriteLine(SerializeJson(body));
             }
-            break;
-        case SK.EMsg.ServiceMethod:
-            msg = new SK.ClientMsgProtobuf(packet);
-            System.Console.WriteLine($":: Method {msg.Header.Proto.target_job_name}");
-            break;
-        case SK.EMsg.ServiceMethodResponse:
-            msg = new SK.ClientMsgProtobuf(packet);
-            System.Console.WriteLine($":: Method {msg.Header.Proto.target_job_name}");
             break;
         case SK.EMsg.ClientPICSProductInfoRequest:
             var reqMsg = new SK.ClientMsgProtobuf<SK.Internal.CMsgClientPICSProductInfoRequest>(
