@@ -1,8 +1,11 @@
+using System.Linq;
+
+using C = System.Collections.Generic;
 using SK = SteamKit2;
 
 // originally from steamkit but then tweaked
 // https://github.com/SteamRE/SteamKit/blob/5c0143306dd4e56b0780cc006f822e12a42883a1/Resources/NetHookAnalyzer2/NetHookAnalyzer2/MessageTypeOverrides.cs#L15
-var emsgOverrides = new System.Collections.Generic.Dictionary<SK.EMsg, System.Type>
+var emsgOverrides = new C.Dictionary<SK.EMsg, System.Type>
 {
     { SK.EMsg.ClientLogonGameServer, typeof(SK.Internal.CMsgClientLogon) },
     { SK.EMsg.ClientGamesPlayed, typeof(SK.Internal.CMsgClientGamesPlayed) },
@@ -60,6 +63,17 @@ var emsgOverrides = new System.Collections.Generic.Dictionary<SK.EMsg, System.Ty
         }
         return;
     }
+}
+
+uint chosenGame = 0;
+try
+{
+    chosenGame = System.UInt32.Parse(System.Environment.GetEnvironmentVariable("HOTAIR_GAME"));
+    System.Console.WriteLine($"Hotair: HOTAIR_GAME set, will launch game {chosenGame}");
+}
+catch
+{
+    System.Console.WriteLine("Hotair: No value for HOTAIR_GAME, will list games in library");
 }
 
 System.Console.WriteLine("Hotair: Initializing...");
@@ -197,56 +211,62 @@ System.Console.WriteLine(
     $"Hotair: Waiting for account information... got {licenseList.LicenseList.Count} licenses, done"
 );
 
-System.Console.WriteLine($"Hotair: Getting list of available apps...");
-var picsPkgs = new System.Collections.Generic.List<SK.SteamApps.PICSRequest>();
-foreach (var license in licenseList.LicenseList)
+var appIDs = new C.List<uint>();
+if (chosenGame != 0)
 {
-    picsPkgs.Add(
-        new SK.SteamApps.PICSRequest(id: license.PackageID, access_token: license.AccessToken)
+    appIDs.Add(chosenGame);
+}
+else
+{
+    System.Console.WriteLine($"Hotair: Getting list of available apps...");
+    var picsPkgs = new C.List<SK.SteamApps.PICSRequest>();
+    foreach (var license in licenseList.LicenseList)
+    {
+        picsPkgs.Add(
+            new SK.SteamApps.PICSRequest(id: license.PackageID, access_token: license.AccessToken)
+        );
+    }
+    var pkgPicsInfo = await steamApps.PICSGetProductInfo(
+        new C.List<SK.SteamApps.PICSRequest>(),
+        picsPkgs
     );
-}
-var pkgPicsInfo = await steamApps.PICSGetProductInfo(
-    new System.Collections.Generic.List<SK.SteamApps.PICSRequest>(),
-    picsPkgs
-);
-if (pkgPicsInfo.Failed)
-{
-    throw new System.Exception("Failed PICS request for packages");
-}
-var appIDs = new System.Collections.Generic.List<uint>();
-foreach (var page in pkgPicsInfo.Results)
-{
-    if (page.UnknownPackages.Count > 0)
+    if (pkgPicsInfo.Failed)
     {
-        throw new System.Exception("PICS request for packages returned unknown packages");
+        throw new System.Exception("Failed PICS request for packages");
     }
-    foreach (var pkg in page.Packages)
+    foreach (var page in pkgPicsInfo.Results)
     {
-        var apps =
-            FormatKeyValue(pkg.Value.KeyValues)["appids"]
-            as System.Collections.Generic.Dictionary<string, object>;
-        foreach (var app in apps)
-            appIDs.Add(System.UInt32.Parse(app.Value as string));
+        if (page.UnknownPackages.Count > 0)
+        {
+            throw new System.Exception("PICS request for packages returned unknown packages");
+        }
+        foreach (var pkg in page.Packages)
+        {
+            var apps =
+                FormatKeyValue(pkg.Value.KeyValues)["appids"] as C.Dictionary<string, object>;
+            foreach (var app in apps)
+                appIDs.Add(System.UInt32.Parse(app.Value as string));
+        }
     }
+    System.Console.WriteLine($"Hotair: Getting list of available apps... found {appIDs.Count}");
 }
-System.Console.WriteLine($"Hotair: Getting list of available apps... found {appIDs.Count}");
 
 System.Console.WriteLine($"Hotair: Checking metadata for available apps...");
-var picsApps = new System.Collections.Generic.List<SK.SteamApps.PICSRequest>();
+var picsApps = new C.List<SK.SteamApps.PICSRequest>();
 foreach (var appID in appIDs)
 {
     picsApps.Add(new SK.SteamApps.PICSRequest(id: appID));
 }
 var appPicsInfo = await steamApps.PICSGetProductInfo(
     picsApps,
-    new System.Collections.Generic.List<SK.SteamApps.PICSRequest>(),
+    new C.List<SK.SteamApps.PICSRequest>(),
     true
 );
 if (appPicsInfo.Failed)
 {
     throw new System.Exception("Failed PICS request for apps metadata");
 }
-var tokenAppIDs = new System.Collections.Generic.HashSet<uint>();
+var tokenAppIDs = new C.HashSet<uint>();
 foreach (var page in appPicsInfo.Results)
 {
     if (page.UnknownApps.Count > 0)
@@ -261,14 +281,11 @@ foreach (var page in appPicsInfo.Results)
 }
 System.Console.WriteLine($"Hotair: Checking metadata for available apps... done");
 
-var appTokens = new System.Collections.Generic.Dictionary<uint, ulong>();
+var appTokens = new C.Dictionary<uint, ulong>();
 if (tokenAppIDs.Count > 0)
 {
     System.Console.WriteLine($"Hotair: Requesting missing tokens for {tokenAppIDs.Count} apps...");
-    var appTokensData = await steamApps.PICSGetAccessTokens(
-        tokenAppIDs,
-        new System.Collections.Generic.List<uint>()
-    );
+    var appTokensData = await steamApps.PICSGetAccessTokens(tokenAppIDs, new C.List<uint>());
     appTokens = appTokensData.AppTokens;
     System.Console.WriteLine(
         $"Hotair: Requesting missing tokens for {tokenAppIDs.Count} apps... got {appTokens.Count}"
@@ -276,7 +293,7 @@ if (tokenAppIDs.Count > 0)
 }
 
 System.Console.WriteLine($"Hotair: Getting details for available apps...");
-picsApps = new System.Collections.Generic.List<SK.SteamApps.PICSRequest>();
+picsApps = new C.List<SK.SteamApps.PICSRequest>();
 foreach (var appID in appIDs)
 {
     var req = new SK.SteamApps.PICSRequest(id: appID);
@@ -284,9 +301,10 @@ foreach (var appID in appIDs)
         req.AccessToken = appTokens[appID];
     picsApps.Add(req);
 }
+var appsInfo = new C.Dictionary<uint, object>();
 appPicsInfo = await steamApps.PICSGetProductInfo(
     picsApps,
-    new System.Collections.Generic.List<SK.SteamApps.PICSRequest>(),
+    new C.List<SK.SteamApps.PICSRequest>(),
     false
 );
 if (appPicsInfo.Failed)
@@ -307,11 +325,31 @@ foreach (var page in appPicsInfo.Results)
         var type = LookPath(attrs, "common", "type") as string;
         if (type != "Game")
             continue;
-        var name = LookPath(attrs, "common", "name") as string;
-        System.Console.WriteLine($"- {name}");
+        appsInfo[app.Key] = attrs;
     }
 }
-System.Console.WriteLine($"Hotair: Getting details for available apps... done");
+System.Console.WriteLine(
+    $"Hotair: Getting details for available apps... found {appsInfo.Count} games"
+);
+
+if (chosenGame == 0)
+{
+    var sortedGames = new C.List<object>(appsInfo.Values).OrderBy(o =>
+        LookPath(o, "common", "name")
+    );
+    foreach (var game in sortedGames)
+    {
+        var name = LookPath(game, "common", "name");
+        var id = LookPath(game, "appid");
+        System.Console.WriteLine($"- {name} ({id})");
+    }
+}
+else
+{
+    var game = appsInfo[chosenGame];
+    var depots = LookPath(game, "depots");
+    System.Console.WriteLine(SerializeJson(depots));
+}
 
 System.Console.WriteLine("Hotair: Logging off from Steam...");
 steamUser.LogOff();
@@ -411,9 +449,9 @@ string SerializeJson<T>(T obj)
     );
 }
 
-System.Collections.Generic.Dictionary<string, object> FormatKeyValue(SK.KeyValue kv)
+C.Dictionary<string, object> FormatKeyValue(SK.KeyValue kv)
 {
-    var obj = new System.Collections.Generic.Dictionary<string, object>();
+    var obj = new C.Dictionary<string, object>();
     foreach (var child in kv.Children)
     {
         if (child.Children.Count > 0)
@@ -424,7 +462,7 @@ System.Collections.Generic.Dictionary<string, object> FormatKeyValue(SK.KeyValue
     return obj;
 }
 
-System.Collections.Generic.Dictionary<string, object> FormatACF(string acf)
+C.Dictionary<string, object> FormatACF(string acf)
 {
     if (acf[acf.Length - 1] == '\0')
         acf = acf.Remove(acf.Length - 1);
@@ -446,17 +484,17 @@ System.Collections.Generic.Dictionary<string, object> FormatACF(string acf)
     replaced = "{" + replaced + "}";
     var opts = new System.Text.Json.JsonSerializerOptions();
     opts.AllowTrailingCommas = true;
-    return System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<
-        string,
-        object
-    >>(replaced, opts);
+    return System.Text.Json.JsonSerializer.Deserialize<C.Dictionary<string, object>>(
+        replaced,
+        opts
+    );
 }
 
 object LookPath(object o, params string[] path)
 {
     foreach (var key in path)
     {
-        o = (o as System.Collections.Generic.Dictionary<string, object>)[key];
+        o = (o as C.Dictionary<string, object>)[key];
     }
     return o;
 }
