@@ -341,6 +341,7 @@ void DumpMsg(string msgBase64)
         case SK.EMsg.ServiceMethodCallFromClient:
         case SK.EMsg.ServiceMethodCallFromClientNonAuthed:
         case SK.EMsg.ServiceMethodResponse:
+        {
             msg = new SK.ClientMsgProtobuf(packet);
             System.Console.WriteLine(SerializeJson(msg.Header));
             var match = System.Text.RegularExpressions.Regex.Match(
@@ -353,35 +354,46 @@ void DumpMsg(string msgBase64)
             );
             if (cls == null)
             {
-                System.Console.WriteLine("   (could not find corresponding class, skipping)");
+                cls = System.Type.GetType(
+                    $"SteamKit2.WebUI.Internal.{match.Groups[1].Value}, SteamKit2",
+                    false
+                );
+                if (cls == null)
+                {
+                    System.Console.WriteLine("   (could not find corresponding class, skipping)");
+                    break;
+                }
+            }
+            var method = cls.GetMethod(match.Groups[2].Value);
+            System.Type protoType;
+            if (packet.MsgType == SK.EMsg.ServiceMethodResponse)
+            {
+                protoType = method.ReturnType.GetGenericArguments()[0].GetGenericArguments()[0];
             }
             else
             {
-                var method = cls.GetMethod(match.Groups[2].Value);
-                System.Type protoType;
-                if (packet.MsgType == SK.EMsg.ServiceMethodResponse)
-                {
-                    protoType = method.ReturnType.GetGenericArguments()[0].GetGenericArguments()[0];
-                }
-                else
-                {
-                    protoType = method.GetParameters()[0].ParameterType;
-                }
-                System.Console.WriteLine(protoType);
-                var protoWrapper = typeof(SK.ClientMsgProtobuf<>)
-                    .MakeGenericType(protoType)
-                    .GetConstructor(new System.Type[] { typeof(SK.IPacketMsg) })
-                    .Invoke(new object[] { packet });
-                var body = protoWrapper.GetType().GetProperty("Body").GetValue(protoWrapper);
-                System.Console.WriteLine(SerializeJson(body));
+                protoType = method.GetParameters()[0].ParameterType;
             }
+            System.Console.WriteLine($"Parsed target as: {protoType}");
+            var protoWrapper = typeof(SK.ClientMsgProtobuf<>)
+                .MakeGenericType(protoType)
+                .GetConstructor(new System.Type[] { typeof(SK.IPacketMsg) })
+                .Invoke(new object[] { packet });
+            var body = protoWrapper.GetType().GetProperty("Body").GetValue(protoWrapper);
+            System.Console.WriteLine(SerializeJson(body));
             break;
+        }
         default:
-            if (packet.GetType() == typeof(SK.PacketClientMsgProtobuf))
+            if (packet.GetType() != typeof(SK.PacketClientMsgProtobuf))
             {
-                cls = System.Type.GetType(
+                System.Console.WriteLine("   (not protobuf, skipping)");
+            }
+            else
+            {
+                var cls = System.Type.GetType(
                     $"SteamKit2.Internal.CMsg{packet.MsgType}, SteamKit2",
-                    false
+                    false,
+                    true
                 );
                 if (cls == null)
                 {
