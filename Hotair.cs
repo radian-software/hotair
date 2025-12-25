@@ -1,5 +1,4 @@
 using System.Linq;
-
 using C = System.Collections.Generic;
 using SK = SteamKit2;
 
@@ -347,8 +346,28 @@ if (chosenGame == 0)
 else
 {
     var game = appsInfo[chosenGame];
-    var depots = LookPath(game, "depots");
-    System.Console.WriteLine(SerializeJson(depots));
+    var gid = "";
+    foreach (var depot in LookPath(game, "depots") as C.Dictionary<string, object>)
+    {
+        string oslist = "";
+        try
+        {
+            oslist = LookPath(depot.Value, "config", "oslist") as string;
+        }
+        catch
+        {
+            continue;
+        }
+        if (oslist == "linux")
+        {
+            gid = LookPath(depot.Value, "manifests", "public", "gid") as string;
+            break;
+        }
+    }
+    if (gid == "")
+    {
+        throw new System.Exception($"Failed to find Linux depot for app {chosenGame}");
+    }
 }
 
 System.Console.WriteLine("Hotair: Logging off from Steam...");
