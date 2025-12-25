@@ -1,5 +1,43 @@
 using SK = SteamKit2;
 
+// originally from steamkit but then tweaked
+// https://github.com/SteamRE/SteamKit/blob/5c0143306dd4e56b0780cc006f822e12a42883a1/Resources/NetHookAnalyzer2/NetHookAnalyzer2/MessageTypeOverrides.cs#L15
+var emsgOverrides = new System.Collections.Generic.Dictionary<SK.EMsg, System.Type>
+{
+    { SK.EMsg.ClientLogonGameServer, typeof(SK.Internal.CMsgClientLogon) },
+    { SK.EMsg.ClientGamesPlayed, typeof(SK.Internal.CMsgClientGamesPlayed) },
+    { SK.EMsg.ClientGamesPlayedNoDataBlob, typeof(SK.Internal.CMsgClientGamesPlayed) },
+    { SK.EMsg.ClientGamesPlayedWithDataBlob, typeof(SK.Internal.CMsgClientGamesPlayed) },
+    { SK.EMsg.ClientToGC, typeof(SK.Internal.CMsgGCClient) },
+    { SK.EMsg.ClientFromGC, typeof(SK.Internal.CMsgGCClient) },
+    { SK.EMsg.ClientFriendMsgIncoming, typeof(SK.Internal.CMsgClientFriendMsgIncoming) },
+    { SK.EMsg.ClientFriendMsgEchoToSender, typeof(SK.Internal.CMsgClientFriendMsgIncoming) },
+    { SK.EMsg.ClientCurrentUIMode, typeof(SK.Internal.CMsgClientUIMode) },
+    {
+        SK.EMsg.ClientGetNumberOfCurrentPlayersDP,
+        typeof(SK.Internal.CMsgDPGetNumberOfCurrentPlayers)
+    },
+    {
+        SK.EMsg.ClientGetNumberOfCurrentPlayersDPResponse,
+        typeof(SK.Internal.CMsgDPGetNumberOfCurrentPlayersResponse)
+    },
+    { SK.EMsg.AMGameServerUpdate, typeof(SK.Internal.CMsgGameServerData) },
+    { SK.EMsg.ClientDPUpdateAppJobReport, typeof(SK.WebUI.Internal.CMsgClientUpdateAppJobReport) },
+    { SK.EMsg.ClientPlayingSessionState, typeof(SK.Internal.CMsgClientPlayingSessionState) },
+    {
+        SK.EMsg.ClientNetworkingCertRequestResponse,
+        typeof(SK.Internal.CMsgClientNetworkingCertReply)
+    },
+    {
+        SK.EMsg.ClientChatRequestOfflineMessageCount,
+        typeof(SK.Internal.CMsgClientRequestOfflineMessageCount)
+    },
+    {
+        SK.EMsg.ClientChatOfflineMessageNotification,
+        typeof(SK.Internal.CMsgClientOfflineMessageNotification)
+    },
+};
+
 {
     var msg = System.Environment.GetEnvironmentVariable("HOTAIR_MSG");
     if (msg != null)
@@ -390,11 +428,19 @@ void DumpMsg(string msgBase64)
             }
             else
             {
-                var cls = System.Type.GetType(
-                    $"SteamKit2.Internal.CMsg{packet.MsgType}, SteamKit2",
-                    false,
-                    true
-                );
+                System.Type cls = null;
+                if (emsgOverrides.ContainsKey(packet.MsgType))
+                {
+                    cls = emsgOverrides[packet.MsgType];
+                }
+                if (cls == null)
+                {
+                    cls = System.Type.GetType(
+                        $"SteamKit2.Internal.CMsg{packet.MsgType}, SteamKit2",
+                        false,
+                        true
+                    );
+                }
                 if (cls == null)
                 {
                     System.Console.WriteLine("   (could not find corresponding class, skipping)");
