@@ -214,13 +214,20 @@ if (pkgPicsInfo.Failed)
     throw new System.Exception("Failed PICS request for packages");
 }
 var appIDs = new System.Collections.Generic.List<uint>();
-foreach (var pkg in pkgPicsInfo.Results[0].Packages)
+foreach (var page in pkgPicsInfo.Results)
 {
-    var apps =
-        FormatKeyValue(pkg.Value.KeyValues)["appids"]
-        as System.Collections.Generic.Dictionary<string, object>;
-    foreach (var app in apps)
-        appIDs.Add(System.UInt32.Parse(app.Value as string));
+    if (page.UnknownPackages.Count > 0)
+    {
+        throw new System.Exception("PICS request for packages returned unknown packages");
+    }
+    foreach (var pkg in page.Packages)
+    {
+        var apps =
+            FormatKeyValue(pkg.Value.KeyValues)["appids"]
+            as System.Collections.Generic.Dictionary<string, object>;
+        foreach (var app in apps)
+            appIDs.Add(System.UInt32.Parse(app.Value as string));
+    }
 }
 System.Console.WriteLine($"Hotair: Getting list of available apps... found {appIDs.Count}");
 
@@ -239,14 +246,20 @@ if (appPicsInfo.Failed)
 {
     throw new System.Exception("Failed PICS request for apps metadata");
 }
-System.Console.WriteLine($"Hotair: Checking metadata for available apps... done");
-
 var tokenAppIDs = new System.Collections.Generic.HashSet<uint>();
-foreach (var appID in appIDs)
+foreach (var page in appPicsInfo.Results)
 {
-    if (appPicsInfo.Results[0].Apps[appID].MissingToken)
-        tokenAppIDs.Add(appID);
+    if (page.UnknownApps.Count > 0)
+    {
+        throw new System.Exception("PICS request for apps metadata returned unknown apps");
+    }
+    foreach (var appID in appIDs)
+    {
+        if (page.Apps[appID].MissingToken)
+            tokenAppIDs.Add(appID);
+    }
 }
+System.Console.WriteLine($"Hotair: Checking metadata for available apps... done");
 
 var appTokens = new System.Collections.Generic.Dictionary<uint, ulong>();
 if (tokenAppIDs.Count > 0)
@@ -280,13 +293,19 @@ if (appPicsInfo.Failed)
 {
     throw new System.Exception("Failed PICS request for apps");
 }
-System.Console.WriteLine($"Hotair: Getting details for available apps... done");
-
-foreach (var app in appPicsInfo.Results[0].Apps)
+foreach (var page in appPicsInfo.Results)
 {
-    var attrs = FormatKeyValue(app.Value.KeyValues);
-    System.Console.WriteLine($"- {app.Key}");
+    if (page.UnknownApps.Count > 0)
+    {
+        throw new System.Exception("PICS request for apps returned unknown apps");
+    }
+    foreach (var app in page.Apps)
+    {
+        var attrs = FormatKeyValue(app.Value.KeyValues);
+        System.Console.WriteLine($"- {app.Key}");
+    }
 }
+System.Console.WriteLine($"Hotair: Getting details for available apps... done");
 
 System.Console.WriteLine("Hotair: Logging off from Steam...");
 steamUser.LogOff();
