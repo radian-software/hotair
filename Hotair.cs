@@ -296,16 +296,31 @@ void DumpMsg(string msgBase64)
             return;
         case SK.EMsg.ServiceMethodCallFromClient:
             msg = new SK.ClientMsgProtobuf(packet);
+            System.Console.WriteLine(SerializeJson(msg.Header));
             System.Console.WriteLine($":: Method {msg.Header.Proto.target_job_name}");
-            switch (msg.Header.Proto.target_job_name)
+            var match = System.Text.RegularExpressions.Regex.Match(
+                msg.Header.Proto.target_job_name,
+                "^([^.]+)\\.([^.#]+)#1$"
+            );
+            var cls = System.Type.GetType(
+                $"SteamKit2.Internal.{match.Groups[1].Value}, SteamKit2",
+                false
+            );
+            if (cls == null)
             {
-                case "ClientMetrics.ReportLinuxStats#1":
-                    var jobMsg =
-                        new SK.ClientMsgProtobuf<SK.Internal.CClientMetrics_ReportLinuxStats_Notification>(
-                            packet
-                        );
-                    System.Console.WriteLine(SerializeJson(jobMsg.Body));
-                    break;
+                System.Console.WriteLine("   (could not find corresponding class, skipping)");
+            }
+            else
+            {
+                var protoType = cls.GetMethod(match.Groups[2].Value)
+                    .GetParameters()[0]
+                    .ParameterType;
+                var protoWrapper = typeof(SK.ClientMsgProtobuf<>)
+                    .MakeGenericType(protoType)
+                    .GetConstructor(new System.Type[] { typeof(SK.IPacketMsg) })
+                    .Invoke(new object[] { packet });
+                var body = protoWrapper.GetType().GetProperty("Body").GetValue(protoWrapper);
+                System.Console.WriteLine(SerializeJson(body));
             }
             break;
         case SK.EMsg.ServiceMethod:
