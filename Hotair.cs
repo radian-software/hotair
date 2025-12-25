@@ -355,32 +355,49 @@ void DumpMsg(string msgBase64)
                 System.Console.WriteLine(SerializeJson(body));
             }
             break;
-        case SK.EMsg.ClientPICSProductInfoRequest:
-            var reqMsg = new SK.ClientMsgProtobuf<SK.Internal.CMsgClientPICSProductInfoRequest>(
-                packet
-            );
-            System.Console.WriteLine(SerializeJson(reqMsg.Body));
-            break;
-        case SK.EMsg.ClientPICSProductInfoResponse:
-            var respMsg = new SK.ClientMsgProtobuf<SK.Internal.CMsgClientPICSProductInfoResponse>(
-                packet
-            );
-            System.Console.WriteLine(SerializeJson(respMsg.Body));
-            foreach (var pkg in respMsg.Body.packages)
+        default:
+            if (packet.GetType() == typeof(SK.PacketClientMsgProtobuf))
             {
-                if (pkg.buffer == null)
-                    continue;
-                using var ms = new System.IO.MemoryStream(pkg.buffer);
-                using var br = new System.IO.BinaryReader(ms);
-                br.ReadUInt32();
-                var kv = new SK.KeyValue();
-                System.Console.WriteLine($":: Buffer for package {pkg.packageid}");
-                if (!kv.TryReadAsBinary(ms))
+                cls = System.Type.GetType(
+                    $"SteamKit2.Internal.CMsg{packet.MsgType}, SteamKit2",
+                    false
+                );
+                if (cls == null)
                 {
-                    System.Console.WriteLine("   (failed to parse, skipping)");
-                    continue;
+                    System.Console.WriteLine("   (could not find corresponding class, skipping)");
                 }
-                System.Console.WriteLine(SerializeJson(FormatKeyValue(kv)));
+                else
+                {
+                    var protoWrapper = typeof(SK.ClientMsgProtobuf<>)
+                        .MakeGenericType(cls)
+                        .GetConstructor(new System.Type[] { typeof(SK.IPacketMsg) })
+                        .Invoke(new object[] { packet });
+                    var body = protoWrapper.GetType().GetProperty("Body").GetValue(protoWrapper);
+                    System.Console.WriteLine(SerializeJson(body));
+                    if (packet.MsgType == SK.EMsg.ClientPICSProductInfoResponse)
+                    {
+                        foreach (
+                            var pkg in (
+                                body as SK.Internal.CMsgClientPICSProductInfoResponse
+                            ).packages
+                        )
+                        {
+                            if (pkg.buffer == null)
+                                continue;
+                            using var ms = new System.IO.MemoryStream(pkg.buffer);
+                            using var br = new System.IO.BinaryReader(ms);
+                            br.ReadUInt32();
+                            var kv = new SK.KeyValue();
+                            System.Console.WriteLine($":: Buffer for package {pkg.packageid}");
+                            if (!kv.TryReadAsBinary(ms))
+                            {
+                                System.Console.WriteLine("   (failed to parse, skipping)");
+                                continue;
+                            }
+                            System.Console.WriteLine(SerializeJson(FormatKeyValue(kv)));
+                        }
+                    }
+                }
             }
             break;
     }
