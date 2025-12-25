@@ -302,7 +302,10 @@ foreach (var page in appPicsInfo.Results)
     foreach (var app in page.Apps)
     {
         var attrs = FormatKeyValue(app.Value.KeyValues);
-        System.Console.WriteLine($"- {app.Key}");
+        if (!attrs.ContainsKey("common"))
+            continue;
+        var name = LookPath(attrs, "common", "name") as string;
+        System.Console.WriteLine($"- {name}");
     }
 }
 System.Console.WriteLine($"Hotair: Getting details for available apps... done");
@@ -418,6 +421,43 @@ System.Collections.Generic.Dictionary<string, object> FormatKeyValue(SK.KeyValue
     return obj;
 }
 
+System.Collections.Generic.Dictionary<string, object> FormatACF(string acf)
+{
+    if (acf[acf.Length - 1] == '\0')
+        acf = acf.Remove(acf.Length - 1);
+    var replaced = System.Text.RegularExpressions.Regex.Replace(
+        acf,
+        "(^\t*\"(?:[^\"\\\\]|\\\\.)*\"$)|(^\t*\"(?:[^\"\\\\]|\\\\.)*\")(\t*\"(?:[^\"\\\\]|\\\\.)*\"$)|\\}",
+        new System.Text.RegularExpressions.MatchEvaluator(
+            (match) =>
+            {
+                if (match.Groups[1].Success)
+                    return match.ToString() + ":";
+                if (match.Groups[2].Success)
+                    return match.Groups[2].ToString() + ":" + match.Groups[3].ToString() + ",";
+                return match.ToString() + ",";
+            }
+        ),
+        System.Text.RegularExpressions.RegexOptions.Multiline
+    );
+    replaced = "{" + replaced + "}";
+    var opts = new System.Text.Json.JsonSerializerOptions();
+    opts.AllowTrailingCommas = true;
+    return System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<
+        string,
+        object
+    >>(replaced, opts);
+}
+
+object LookPath(object o, params string[] path)
+{
+    foreach (var key in path)
+    {
+        o = (o as System.Collections.Generic.Dictionary<string, object>)[key];
+    }
+    return o;
+}
+
 void DumpMsg(string msgBase64)
 {
     System.Console.WriteLine($"Dumping {msgBase64}");
@@ -469,7 +509,7 @@ void DumpMsg(string msgBase64)
             System.Console.WriteLine(SerializeJson(msg.Header));
             var match = System.Text.RegularExpressions.Regex.Match(
                 msg.Header.Proto.target_job_name,
-                "^([^.]+)\\.([^.#]+)#1$"
+                @"^([^.]+)\.([^.#]+)#1$"
             );
             var cls = System.Type.GetType(
                 $"SteamKit2.Internal.{match.Groups[1].Value}, SteamKit2",
@@ -568,7 +608,9 @@ void DumpMsg(string msgBase64)
                                 continue;
                             System.Console.WriteLine($":: Buffer for app {app.appid}");
                             System.Console.WriteLine(
-                                System.Text.Encoding.UTF8.GetString(app.buffer)
+                                SerializeJson(
+                                    FormatACF(System.Text.Encoding.UTF8.GetString(app.buffer))
+                                )
                             );
                         }
                     }
