@@ -304,6 +304,9 @@ foreach (var page in appPicsInfo.Results)
         var attrs = FormatKeyValue(app.Value.KeyValues);
         if (!attrs.ContainsKey("common"))
             continue;
+        var type = LookPath(attrs, "common", "type") as string;
+        if (type != "Game")
+            continue;
         var name = LookPath(attrs, "common", "name") as string;
         System.Console.WriteLine($"- {name}");
     }
