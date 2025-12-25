@@ -77,10 +77,12 @@ var skCallbackLicenseList = SubscribeTo<SK.SteamApps.LicenseListCallback>();
 var skCallbackEmailAddrInfo = SubscribeTo<SK.SteamUser.EmailAddrInfoCallback>();
 var skCallbackAccountInfo = SubscribeTo<SK.SteamUser.AccountInfoCallback>();
 
-System.Console.WriteLine("Hotair: Connecting to Steam...");
+System.Console.WriteLine("Hotair: Initializing... done");
 
+System.Console.WriteLine("Hotair: Connecting to Steam...");
 steamClient.Connect();
 WaitCallback(skCallbackConnected);
+System.Console.WriteLine("Hotair: Connecting to Steam... done");
 
 System.Console.WriteLine("Hotair: Checking for session data on disk...");
 
@@ -92,12 +94,12 @@ SteamSession session;
 try
 {
     session = ReadJson<SteamSession>(sessionFile);
-    System.Console.WriteLine("Hotair: Checking for session data on disk...found");
+    System.Console.WriteLine("Hotair: Checking for session data on disk... found");
 }
 catch (System.Exception)
 {
     session = new SteamSession();
-    System.Console.WriteLine("Hotair: Checking for session data on disk...not found");
+    System.Console.WriteLine("Hotair: Checking for session data on disk... not found");
 }
 
 if (session.RefreshToken != null)
@@ -115,10 +117,12 @@ if (session.RefreshToken != null)
     var logonResult = WaitCallback(skCallbackLoggedOn);
     if (logonResult.Result != SK.EResult.OK)
     {
-        System.Console.WriteLine("Hotair: Logging on to Steam using saved session data...failed");
+        System.Console.WriteLine("Hotair: Logging on to Steam using saved session data... failed");
         session.RefreshToken = null;
         session.AccessToken = null;
     }
+
+    System.Console.WriteLine("Hotair: Logging on to Steam using saved session data... done");
 }
 
 if (session.RefreshToken == null)
@@ -145,8 +149,10 @@ if (session.RefreshToken == null)
     {
         session.GuardData = pollResponse.NewGuardData;
     }
+    System.Console.WriteLine("Hotair: Performing authentication... done");
     System.Console.WriteLine("Hotair: Writing new session data to disk...");
     WriteJson<SteamSession>(sessionFile, session);
+    System.Console.WriteLine("Hotair: Writing new session data to disk... done");
 
     System.Console.WriteLine("Hotair: Logging on to Steam using new session data...");
     steamUser.LogOn(
@@ -170,49 +176,102 @@ if (session.RefreshToken == null)
             )
         );
     }
+
+    System.Console.WriteLine("Hotair: Logging on to Steam using new session data... done");
 }
 
 System.Console.WriteLine("Hotair: Waiting for account information...");
 
 var accountInfo = WaitCallback(skCallbackAccountInfo);
-System.Console.WriteLine($"Hotair: Account name: {accountInfo.PersonaName}");
+System.Console.WriteLine(
+    $"Hotair: Waiting for account information... got name {accountInfo.PersonaName}..."
+);
 
 var emailInfo = WaitCallback(skCallbackEmailAddrInfo);
-System.Console.WriteLine($"Hotair: Account email: {emailInfo.EmailAddress}");
+System.Console.WriteLine(
+    $"Hotair: Waiting for account information... got email {emailInfo.EmailAddress}..."
+);
 
 var licenseList = WaitCallback(skCallbackLicenseList);
-System.Console.WriteLine($"Hotair: Found {licenseList.LicenseList.Count} licenses");
+System.Console.WriteLine(
+    $"Hotair: Waiting for account information... got {licenseList.LicenseList.Count} licenses, done"
+);
 
-ulong libraryAccessToken = 0;
+System.Console.WriteLine($"Hotair: Getting list of available apps...");
+var picsPkgs = new System.Collections.Generic.List<SK.SteamApps.PICSRequest>();
 foreach (var license in licenseList.LicenseList)
 {
-    if (license.PackageID == 0)
-        libraryAccessToken = license.AccessToken;
+    picsPkgs.Add(
+        new SK.SteamApps.PICSRequest(id: license.PackageID, access_token: license.AccessToken)
+    );
 }
-if (libraryAccessToken == 0)
-    throw new System.Exception("Failed to find access token in license for package 0");
-
-System.Console.WriteLine($"Hotair: Getting list of apps in library...");
 var pkgPicsInfo = await steamApps.PICSGetProductInfo(
-    null,
-    new SK.SteamApps.PICSRequest(id: 0, access_token: libraryAccessToken)
+    new System.Collections.Generic.List<SK.SteamApps.PICSRequest>(),
+    picsPkgs
 );
 if (pkgPicsInfo.Failed)
 {
     throw new System.Exception("Failed PICS request for packages");
 }
-var appIDs =
-    FormatKeyValue(pkgPicsInfo.Results[0].Packages[0].KeyValues)["appids"]
-    as System.Collections.Generic.Dictionary<string, object>;
-System.Console.WriteLine($"Hotair: Found {appIDs.Count} apps in library");
+var appIDs = new System.Collections.Generic.List<uint>();
+foreach (var pkg in pkgPicsInfo.Results[0].Packages)
+{
+    var apps =
+        FormatKeyValue(pkg.Value.KeyValues)["appids"]
+        as System.Collections.Generic.Dictionary<string, object>;
+    foreach (var app in apps)
+        appIDs.Add(System.UInt32.Parse(app.Value as string));
+}
+System.Console.WriteLine($"Hotair: Getting list of available apps... found {appIDs.Count}");
 
-System.Console.WriteLine($"Hotair: Getting details for apps in library...");
+System.Console.WriteLine($"Hotair: Checking metadata for available apps...");
 var picsApps = new System.Collections.Generic.List<SK.SteamApps.PICSRequest>();
 foreach (var appID in appIDs)
 {
-    picsApps.Add(new SK.SteamApps.PICSRequest(id: System.UInt32.Parse(appID.Value as string)));
+    picsApps.Add(new SK.SteamApps.PICSRequest(id: appID));
 }
 var appPicsInfo = await steamApps.PICSGetProductInfo(
+    picsApps,
+    new System.Collections.Generic.List<SK.SteamApps.PICSRequest>(),
+    true
+);
+if (appPicsInfo.Failed)
+{
+    throw new System.Exception("Failed PICS request for apps metadata");
+}
+System.Console.WriteLine($"Hotair: Checking metadata for available apps... done");
+
+var tokenAppIDs = new System.Collections.Generic.HashSet<uint>();
+foreach (var appID in appIDs)
+{
+    if (appPicsInfo.Results[0].Apps[appID].MissingToken)
+        tokenAppIDs.Add(appID);
+}
+
+var appTokens = new System.Collections.Generic.Dictionary<uint, ulong>();
+if (tokenAppIDs.Count > 0)
+{
+    System.Console.WriteLine($"Hotair: Requesting missing tokens for {tokenAppIDs.Count} apps...");
+    var appTokensData = await steamApps.PICSGetAccessTokens(
+        tokenAppIDs,
+        new System.Collections.Generic.List<uint>()
+    );
+    appTokens = appTokensData.AppTokens;
+    System.Console.WriteLine(
+        $"Hotair: Requesting missing tokens for {tokenAppIDs.Count} apps... got {appTokens.Count}"
+    );
+}
+
+System.Console.WriteLine($"Hotair: Getting details for available apps...");
+picsApps = new System.Collections.Generic.List<SK.SteamApps.PICSRequest>();
+foreach (var appID in appIDs)
+{
+    var req = new SK.SteamApps.PICSRequest(id: appID);
+    if (appTokens.ContainsKey(appID))
+        req.AccessToken = appTokens[appID];
+    picsApps.Add(req);
+}
+appPicsInfo = await steamApps.PICSGetProductInfo(
     picsApps,
     new System.Collections.Generic.List<SK.SteamApps.PICSRequest>(),
     false
@@ -220,6 +279,13 @@ var appPicsInfo = await steamApps.PICSGetProductInfo(
 if (appPicsInfo.Failed)
 {
     throw new System.Exception("Failed PICS request for apps");
+}
+System.Console.WriteLine($"Hotair: Getting details for available apps... done");
+
+foreach (var app in appPicsInfo.Results[0].Apps)
+{
+    var attrs = FormatKeyValue(app.Value.KeyValues);
+    System.Console.WriteLine($"- {app.Key}");
 }
 
 System.Console.WriteLine("Hotair: Logging off from Steam...");
