@@ -422,7 +422,7 @@ if (!System.IO.Directory.Exists(gameDir))
         foreach (var chunk in file.Chunks)
             totalSize += (int)chunk.UncompressedLength;
         using var fd = System.IO.File.Create(filePath, totalSize);
-        foreach (var chunk in file.Chunks)
+        foreach (var chunk in file.Chunks.OrderBy(c => c.Offset))
         {
             var buf = new byte[chunk.UncompressedLength];
             await steamCDN.DownloadDepotChunkAsync(
@@ -437,7 +437,8 @@ if (!System.IO.Directory.Exists(gameDir))
         // Steam sets literally every single file in the whole game to
         // executable, even though that makes no sense. Whatever,
         // guess we will do the same.
-        System.IO.File.SetUnixFileMode(filePath, (System.IO.UnixFileMode)0777);
+        if (!System.OperatingSystem.IsWindows())
+            System.IO.File.SetUnixFileMode(filePath, (System.IO.UnixFileMode)0b111_111_111);
     }
     System.IO.Directory.Move(gameTmpDir, gameDir);
     System.Console.WriteLine($"Hotair: Downloading depot chunks... done");
