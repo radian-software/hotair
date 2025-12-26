@@ -609,34 +609,6 @@ C.Dictionary<string, object> FormatKeyValue(SK.KeyValue kv)
     return obj;
 }
 
-C.Dictionary<string, object> FormatACF(string acf)
-{
-    if (acf[acf.Length - 1] == '\0')
-        acf = acf.Remove(acf.Length - 1);
-    var replaced = System.Text.RegularExpressions.Regex.Replace(
-        acf,
-        "(^\t*\"(?:[^\"\\\\]|\\\\.)*\"$)|(^\t*\"(?:[^\"\\\\]|\\\\.)*\")(\t*\"(?:[^\"\\\\]|\\\\.)*\"$)|\\}",
-        new System.Text.RegularExpressions.MatchEvaluator(
-            (match) =>
-            {
-                if (match.Groups[1].Success)
-                    return match.ToString() + ":";
-                if (match.Groups[2].Success)
-                    return match.Groups[2].ToString() + ":" + match.Groups[3].ToString() + ",";
-                return match.ToString() + ",";
-            }
-        ),
-        System.Text.RegularExpressions.RegexOptions.Multiline
-    );
-    replaced = "{" + replaced + "}";
-    var opts = new System.Text.Json.JsonSerializerOptions();
-    opts.AllowTrailingCommas = true;
-    return System.Text.Json.JsonSerializer.Deserialize<C.Dictionary<string, object>>(
-        replaced,
-        opts
-    );
-}
-
 object LookPath(object o, params string[] path)
 {
     foreach (var key in path)
