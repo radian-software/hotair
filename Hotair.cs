@@ -344,14 +344,20 @@ if (chosenGame == 0)
         var id = LookPath(game, "appid");
         System.Console.WriteLine($"- {name} ({id})");
     }
+    return;
 }
-else
+
+var gameConfig = appsInfo[chosenGame];
+var gameDir = System.IO.Path.Join(
+    System.Environment.GetEnvironmentVariable("HOME"),
+    $".local/share/hotair/games/{chosenGame}"
+);
+if (!System.IO.Directory.Exists(gameDir))
 {
-    System.Console.WriteLine($"Hotair: Checking information for game {chosenGame}...");
-    var game = appsInfo[chosenGame];
+    System.Console.WriteLine($"Hotair: Checking depots for game {chosenGame}...");
     uint depotId = 0;
     ulong manifestId = 0;
-    foreach (var depot in LookPath(game, "depots") as C.Dictionary<string, object>)
+    foreach (var depot in LookPath(gameConfig, "depots") as C.Dictionary<string, object>)
     {
         string oslist = "";
         try
@@ -375,7 +381,7 @@ else
     {
         throw new System.Exception($"Failed to find Linux depot for app {chosenGame}");
     }
-    System.Console.WriteLine($"Hotair: Checking information for game {chosenGame}... done");
+    System.Console.WriteLine($"Hotair: Checking depots for game {chosenGame}... done");
     System.Console.WriteLine($"Hotair: Requesting depot decryption key...");
     var depotKey = await steamApps.GetDepotDecryptionKey(depotId, chosenGame);
     System.Console.WriteLine($"Hotair: Requesting depot decryption key... done");
@@ -396,8 +402,93 @@ else
         depotKey.DepotKey
     );
     System.Console.WriteLine($"Hotair: Downloading manifest... done");
-    System.Console.WriteLine(SerializeJson(manifest));
+    System.Console.WriteLine($"Hotair: Downloading depot chunks...");
+    var gameTmpDir = gameDir + ".tmp";
+    try
+    {
+        System.IO.Directory.Delete(gameTmpDir, true);
+    }
+    catch (System.IO.DirectoryNotFoundException) { }
+    System.IO.Directory.CreateDirectory(gameTmpDir);
+    foreach (var file in manifest.Files)
+    {
+        var filePath = System.IO.Path.Join(gameTmpDir, file.FileName);
+        if (file.Chunks.Count == 0)
+        {
+            System.IO.Directory.CreateDirectory(filePath);
+            continue;
+        }
+        using var fd = System.IO.File.Create(filePath);
+        foreach (var chunk in file.Chunks)
+        {
+            var buf = new byte[chunk.UncompressedLength];
+            await steamCDN.DownloadDepotChunkAsync(
+                depotId,
+                chunk,
+                cdnServer,
+                buf,
+                depotKey.DepotKey
+            );
+            fd.Write(buf);
+        }
+    }
+    System.IO.Directory.Move(gameTmpDir, gameDir);
+    System.Console.WriteLine($"Hotair: Downloading depot chunks... done");
 }
+
+System.Console.WriteLine($"Hotair: Finding launch path for game {chosenGame}...");
+var launchPath = "";
+foreach (var launch in LookPath(gameConfig, "config", "launch") as C.Dictionary<string, object>)
+{
+    string oslist = "";
+    try
+    {
+        oslist = LookPath(launch.Value, "config", "oslist") as string;
+    }
+    catch
+    {
+        continue;
+    }
+    if (oslist == "linux")
+    {
+        launchPath = LookPath(launch.Value, "executable") as string;
+    }
+}
+if (launchPath == "")
+{
+    throw new System.Exception($"Failed to find Linux launch path for app {chosenGame}");
+}
+launchPath = System.IO.Path.Join(gameDir, launchPath);
+if (!System.IO.File.Exists(launchPath))
+{
+    throw new System.Exception($"File does not exist: {launchPath}");
+}
+System.Console.WriteLine($"Hotair: Finding launch path for game {chosenGame}... done");
+
+System.Console.WriteLine("Hotair: Locating libhotair.so...");
+var libPath = System.IO.Path.GetFullPath("libhotair.so");
+if (!System.IO.File.Exists(libPath))
+{
+    throw new System.Exception($"File does not exist: {libPath}");
+}
+System.Console.WriteLine("Hotair: Locating libhotair.so... done");
+
+System.Console.WriteLine("Hotair: Launching game...");
+var procInfo = new System.Diagnostics.ProcessStartInfo(launchPath);
+procInfo.WorkingDirectory = gameDir;
+var ldPreload = System.Environment.GetEnvironmentVariable("LD_PRELOAD");
+if (ldPreload == null)
+{
+    ldPreload = libPath;
+}
+else
+{
+    ldPreload = libPath + ":" + ldPreload;
+}
+procInfo.EnvironmentVariables["LD_PRELOAD"] = ldPreload;
+var proc = System.Diagnostics.Process.Start(procInfo);
+await proc.WaitForExitAsync();
+System.Console.WriteLine("Hotair: Launching game... exited");
 
 System.Console.WriteLine("Hotair: Logging off from Steam...");
 steamUser.LogOff();
