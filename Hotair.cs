@@ -794,12 +794,18 @@ void DumpMsg(string msgBase64)
                         {
                             if (app.buffer == null)
                                 continue;
+                            var kv = new SK.KeyValue();
                             System.Console.WriteLine($":: Buffer for app {app.appid}");
-                            System.Console.WriteLine(
-                                SerializeJson(
-                                    FormatACF(System.Text.Encoding.UTF8.GetString(app.buffer))
+                            if (
+                                !kv.ReadAsText(
+                                    new System.IO.MemoryStream(app.buffer, 0, app.buffer.Length - 1)
                                 )
-                            );
+                            )
+                            {
+                                System.Console.WriteLine("   (failed to parse, skipping)");
+                                continue;
+                            }
+                            System.Console.WriteLine(SerializeJson(FormatKeyValue(kv)));
                         }
                     }
                 }
