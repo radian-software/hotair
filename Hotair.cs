@@ -418,7 +418,10 @@ if (!System.IO.Directory.Exists(gameDir))
             System.IO.Directory.CreateDirectory(filePath);
             continue;
         }
-        using var fd = System.IO.File.Create(filePath);
+        int totalSize = 0;
+        foreach (var chunk in file.Chunks)
+            totalSize += (int)chunk.UncompressedLength;
+        using var fd = System.IO.File.Create(filePath, totalSize);
         foreach (var chunk in file.Chunks)
         {
             var buf = new byte[chunk.UncompressedLength];
@@ -431,6 +434,10 @@ if (!System.IO.Directory.Exists(gameDir))
             );
             fd.Write(buf);
         }
+        // Steam sets literally every single file in the whole game to
+        // executable, even though that makes no sense. Whatever,
+        // guess we will do the same.
+        System.IO.File.SetUnixFileMode(filePath, (System.IO.UnixFileMode)0777);
     }
     System.IO.Directory.Move(gameTmpDir, gameDir);
     System.Console.WriteLine($"Hotair: Downloading depot chunks... done");
